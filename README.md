@@ -35,55 +35,56 @@ TikTok's official API **does not** allow replying to comments, sending DMs, foll
 For You page. This server avoids unofficial "bot" browser automation on purpose, because that breaks TikTok's
 rules and gets accounts banned.
 
-**Until TikTok audits your app, everything you post is private (`SELF_ONLY`).** The audit is free; see step 7.
+**Until TikTok audits your app, everything you post is private (`SELF_ONLY`).** The audit is free; see step 6.
 While you wait, use `mode: "draft"`. It sends the video to your TikTok inbox, and you tap *Post* in the app.
 
 ---
 
-## Setup (about 30 minutes, all in the browser)
+## Setup (about 20 minutes, all in the browser)
 
-### 1. Create a free Cloudflare account and KV storage
-1. Sign up at <https://dash.cloudflare.com/sign-up>.
-2. Go to **Storage & Databases → KV → Create**, and name it `TIKTOK_KV`.
-3. Copy its **ID**. In this GitHub repo, open `wrangler.toml`, click the ✏️ pencil, and replace
-   `REPLACE_WITH_YOUR_KV_NAMESPACE_ID` with the ID. Then commit.
+GitHub Actions does all the Cloudflare work for you: it creates the storage, deploys the server, turns on the
+scheduler and copies your keys in. You only need to make accounts and paste a few values into GitHub.
 
-### 2. Let GitHub deploy to Cloudflare
-1. In Cloudflare, open **My Profile → API Tokens → Create Token** and use the **"Edit Cloudflare Workers"** template.
-   Copy the token.
-2. Copy your **Account ID**. It's on the Workers & Pages overview page, in the right sidebar.
-3. In GitHub, go to **Settings → Secrets and variables → Actions → New repository secret** and add:
+All the secrets below go in this repo under **Settings → Secrets and variables → Actions → New repository secret**.
+
+### 1. Cloudflare: account and API token (about 5 minutes)
+1. Sign up at <https://dash.cloudflare.com/sign-up> (free, no card). Click **Workers & Pages** once, so Cloudflare
+   gives you a free `*.workers.dev` address.
+2. Go to **My Profile → API Tokens → Create Token**, choose the **"Edit Cloudflare Workers"** template, and click
+   **Continue to summary → Create Token**. Copy the token.
+3. Copy your **Account ID**. It's on the Workers & Pages page, in the right sidebar.
+4. Add these GitHub secrets:
    - `CLOUDFLARE_API_TOKEN`: the token
    - `CLOUDFLARE_ACCOUNT_ID`: the account ID
-4. Go to **Actions → Deploy to Cloudflare Workers → Run workflow**. When it finishes, the log shows your URL, for example
-   `https://tiktok-mcp.YOURNAME.workers.dev`. From then on, every push deploys automatically.
+   - `MCP_SECRET`: a long random password you make up, for example from
+     <https://1password.com/password-generator>. Save it somewhere too, because you'll need it in steps 4 and 5.
+     **Anyone with this password can control your TikTok.**
+5. In GitHub, go to **Actions → Deploy to Cloudflare Workers → Run workflow**. When it goes green, open the run.
+   Its summary lists all your URLs, for example `https://tiktok-mcp.YOURNAME.workers.dev`.
 
-### 3. Create a TikTok developer app
+### 2. TikTok: developer app (about 10 minutes)
 1. Go to <https://developers.tiktok.com/>, log in, and open **Manage apps → Connect an app**.
-2. Fill in the app details:
-   - **Terms of Service URL:** `https://tiktok-mcp.YOURNAME.workers.dev/terms`
-   - **Privacy Policy URL:** `https://tiktok-mcp.YOURNAME.workers.dev/privacy`
+2. Copy these from the GitHub run summary:
+   - **Terms of Service URL:** `…/terms`
+   - **Privacy Policy URL:** `…/privacy`
    - **Platform:** Web, using your worker URL as the website
 3. **Add products:** **Login Kit** and **Content Posting API**. Turn on *Direct Post* in the Content Posting API settings.
-4. **Login Kit redirect URI:** `https://tiktok-mcp.YOURNAME.workers.dev/auth/callback`
+4. **Login Kit redirect URI:** `…/auth/callback`
 5. **Scopes:** `user.info.basic`, `user.info.profile`, `user.info.stats`, `video.list`, `video.publish`, `video.upload`
 6. To test before review, switch to **Sandbox** and add your own TikTok account under **Target users**.
-7. Copy the **Client key** and **Client secret**.
 
 > If TikTok asks you to verify URL ownership, choose the *file* method. Put the file name and its contents in
-> `TIKTOK_VERIFY_FILENAME` / `TIKTOK_VERIFY_CONTENT` in `wrangler.toml`, commit, and then click Verify.
+> `TIKTOK_VERIFY_FILENAME` / `TIKTOK_VERIFY_CONTENT` in `wrangler.toml`, commit (this redeploys automatically),
+> and then click Verify.
 
-### 4. Add your secrets to the Worker
-In Cloudflare, open **Workers & Pages → tiktok-mcp → Settings → Variables and Secrets** and add three **Secrets**:
-- `TIKTOK_CLIENT_KEY`
-- `TIKTOK_CLIENT_SECRET`
-- `MCP_SECRET`: a long random password, for example from <https://1password.com/password-generator>.
-  **Anyone with this password can control your TikTok, so keep it private.**
+### 3. Give the server your TikTok keys
+Add two more GitHub secrets, `TIKTOK_CLIENT_KEY` and `TIKTOK_CLIENT_SECRET`, from the TikTok app page.
+Then run the workflow again (**Actions → Run workflow**) to copy them into Cloudflare.
 
-### 5. Connect your TikTok account
+### 4. Connect your TikTok account
 Open `https://tiktok-mcp.YOURNAME.workers.dev/auth/login?key=YOUR_MCP_SECRET` and approve. You should see **"TikTok connected ✅"**.
 
-### 6. Connect your AI agent
+### 5. Connect your AI agent
 Your MCP server URL is:
 
 ```
@@ -95,7 +96,7 @@ https://tiktok-mcp.YOURNAME.workers.dev/mcp/YOUR_MCP_SECRET
 - **Any other MCP client** (Cursor, VS Code, n8n, etc.): use the URL as a "Streamable HTTP" server. You can also use
   `…/mcp` with the header `Authorization: Bearer YOUR_MCP_SECRET`.
 
-### 7. Go public (optional, free)
+### 6. Go public (optional, free)
 In the TikTok developer portal, submit the app for review. Explain that it's a personal tool for posting to your own
 account, and include a short screen recording of the login and of a post being made. Once it's approved, posts can be
 `PUBLIC_TO_EVERYONE`.

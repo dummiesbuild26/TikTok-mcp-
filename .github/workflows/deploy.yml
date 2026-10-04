@@ -1,5 +1,9 @@
 name: Deploy to Cloudflare Workers
 
+# Does all the Cloudflare setup: creates the KV storage, deploys the Worker,
+# turns on the cron trigger and copies your secrets into the Worker.
+# Needs repo secrets CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID (see README).
+
 on:
   push:
     branches: [main, master]
@@ -8,6 +12,9 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -16,13 +23,52 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run typecheck
-      - name: Deploy
+
+      - name: Check Cloudflare secrets
+        id: check
         run: |
-          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
-            echo "::warning::CLOUDFLARE_API_TOKEN secret not set - skipping deploy. See README step 2."
-            exit 0
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "::warning::CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID not set - skipping deploy. See README step 1."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
           fi
-          npx wrangler deploy
+
+      - name: Deploy Worker
+        if: steps.check.outputs.ready == 'true'
+        run: |
+          set -o pipefail
+          npx wrangler deploy 2>&1 | tee deploy.log
+
+      - name: Copy secrets into the Worker
+        if: steps.check.outputs.ready == 'true'
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          TIKTOK_CLIENT_KEY: ${{ secrets.TIKTOK_CLIENT_KEY }}
+          TIKTOK_CLIENT_SECRET: ${{ secrets.TIKTOK_CLIENT_SECRET }}
+          MCP_SECRET: ${{ secrets.MCP_SECRET }}
+        run: |
+          node -e '
+            const names = ["TIKTOK_CLIENT_KEY", "TIKTOK_CLIENT_SECRET", "MCP_SECRET"];
+            const set = Object.fromEntries(names.filter((n) => process.env[n]).map((n) => [n, process.env[n]]));
+            const missing = names.filter((n) => !process.env[n]);
+            if (missing.length) console.log(`::warning::Not set yet (add as GitHub secrets, then re-run): ${missing.join(", ")}`);
+            require("fs").writeFileSync("secrets.json", JSON.stringify(set));
+          '
+          if [ "$(cat secrets.json)" != "{}" ]; then npx wrangler secret bulk secrets.json; fi
+          rm -f secrets.json
+
+      - name: Show your URLs
+        if: steps.check.outputs.ready == 'true'
+        run: |
+          URL=$(grep -oE 'https://[a-zA-Z0-9.-]+\.workers\.dev' deploy.log | head -1)
+          {
+            echo "## ✅ Deployed"
+            echo "| What | URL |"
+            echo "|---|---|"
+            echo "| Status page | $URL |"
+            echo "| TikTok redirect URI | $URL/auth/callback |"
+            echo "| Terms of Service | $URL/terms |"
+            echo "| Privacy Policy | $URL/privacy |"
+            echo "| Connect TikTok | $URL/auth/login?key=YOUR_MCP_SECRET |"
+            echo "| MCP server (for Claude) | $URL/mcp/YOUR_MCP_SECRET |"
+          } >> "$GITHUB_STEP_SUMMARY"

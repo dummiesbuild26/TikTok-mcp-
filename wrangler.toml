@@ -7,11 +7,10 @@ compatibility_date = "2025-01-01"
 [triggers]
 crons = ["*/5 * * * *"]
 
-# Create with: npx wrangler kv namespace create TIKTOK_KV
-# then paste the id it prints below.
+# Storage for tokens and scheduled posts. Wrangler creates it automatically
+# on the first deploy (no ID needed).
 [[kv_namespaces]]
 binding = "KV"
-id = "REPLACE_WITH_YOUR_KV_NAMESPACE_ID"
 
 [vars]
 # Scopes requested from TikTok. Remove any your app was not approved for.
