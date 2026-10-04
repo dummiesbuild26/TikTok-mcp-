@@ -1,0 +1,3 @@
+TIKTOK_CLIENT_KEY=your_client_key
+TIKTOK_CLIENT_SECRET=your_client_secret
+MCP_SECRET=generate-a-long-random-string

@@ -1,0 +1,26 @@
+name = "tiktok-mcp"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+
+# Free tier allows up to 5 cron triggers. This one publishes scheduled posts
+# and keeps the TikTok access token fresh.
+[triggers]
+crons = ["*/5 * * * *"]
+
+# Create with: npx wrangler kv namespace create TIKTOK_KV
+# then paste the id it prints below.
+[[kv_namespaces]]
+binding = "KV"
+id = "REPLACE_WITH_YOUR_KV_NAMESPACE_ID"
+
+[vars]
+# Scopes requested from TikTok. Remove any your app was not approved for.
+TIKTOK_SCOPES = "user.info.basic,user.info.profile,user.info.stats,video.list,video.publish,video.upload"
+# Optional: TikTok URL-ownership verification file (Developer Portal > URL properties).
+TIKTOK_VERIFY_FILENAME = ""
+TIKTOK_VERIFY_CONTENT = ""
+
+# Secrets (set with `npx wrangler secret put NAME`, never commit them):
+#   TIKTOK_CLIENT_KEY
+#   TIKTOK_CLIENT_SECRET
+#   MCP_SECRET          - long random string; protects your MCP endpoint
