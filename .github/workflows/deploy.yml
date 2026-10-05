@@ -72,3 +72,17 @@ jobs:
             echo "| Connect TikTok | $URL/auth/login?key=YOUR_MCP_SECRET |"
             echo "| MCP server (for Claude) | $URL/mcp/YOUR_MCP_SECRET |"
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Check the server responds
+        if: steps.check.outputs.ready == 'true'
+        run: |
+          URL=$(grep -oE 'https://[a-zA-Z0-9.-]+\.workers\.dev' deploy.log | head -1)
+          # A brand-new workers.dev address can take a few minutes to come online.
+          for i in $(seq 1 20); do
+            CODE=$(curl -s -o /dev/null -w '%{http_code}' "$URL/terms" || true)
+            echo "attempt $i: $URL/terms -> HTTP $CODE"
+            if [ "$CODE" = "200" ]; then exit 0; fi
+            sleep 15
+          done
+          echo "::error::$URL is not responding. In Cloudflare check Workers & Pages > tiktok-mcp > Settings > Domains & Routes that workers.dev is enabled."
+          exit 1
